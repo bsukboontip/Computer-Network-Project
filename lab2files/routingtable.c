@@ -10,6 +10,32 @@ int NumRoutes;
 ////////////////////////////////////////////////////////////////
 void InitRoutingTbl (struct pkt_INIT_RESPONSE *InitResponse, int myID){
 	/* ----- YOUR CODE HERE ----- */
+	unsigned int i = 0;
+	unsigned int dest_id = 0;
+	unsigned int next_hop = 0;
+	unsigned int cost = 0;
+	NumRoutes = InitResponse->no_nbr + 1;
+
+	for (i = 0; i < (InitResponse->no_nbr); i++) {
+		dest_id = InitResponse->nbrcost[i].nbr;
+		next_hop = InitResponse->nbrcost[i].nbr;
+		cost = InitResponse->nbrcost[i].cost;
+		routingTable[i].dest_id = dest_id;
+		routingTable[i].next_hop = next_hop;
+		routingTable[i].cost = cost;
+		routingTable[i].path_len = 1;
+		routingTable[i].path[0] = dest_id;
+	}
+
+	dest_id = myID;
+	next_hop = myID;
+	cost = 0;
+	routingTable[i].dest_id = dest_id;
+	routingTable[i].next_hop = next_hop;
+	routingTable[i].cost = cost;
+	routingTable[i].path_len = 1;
+	routingTable[i].path[0] = dest_id;
+
 	return;
 }
 
@@ -17,6 +43,9 @@ void InitRoutingTbl (struct pkt_INIT_RESPONSE *InitResponse, int myID){
 ////////////////////////////////////////////////////////////////
 int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myID){
 	/* ----- YOUR CODE HERE ----- */
+	// ntoh_pkt_RT_UPDATE(RecvdUpdatePacket);
+	
+
 	return 0;
 }
 
@@ -24,6 +53,17 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 ////////////////////////////////////////////////////////////////
 void ConvertTabletoPkt(struct pkt_RT_UPDATE *UpdatePacketToSend, int myID){
 	/* ----- YOUR CODE HERE ----- */
+
+	// ntoh_pkt_RT_UPDATE(UpdatePacketToSend);
+	int i = 0;
+	for (i = 0; i <= NumRoutes; i++) {
+		UpdatePacketToSend->route[i] = routingTable[i];
+	}
+	UpdatePacketToSend->sender_id = myID;
+	UpdatePacketToSend->no_routes = NumRoutes;
+
+	// hton_pkt_RT_UPDATE(UpdatePacketToSend);
+
 	return;
 }
 
