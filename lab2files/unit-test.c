@@ -258,23 +258,23 @@ int main (int argc, char *argv[])
 
 //Testing New Route Update
     
-//     TestNewRoute();
-//     printf("Test Case 2: PASS Added new route to routing table\n");
+    TestNewRoute();
+    printf("Test Case 2: PASS Added new route to routing table\n");
    
-// //Testing Distance Vector Calculation
+//Testing Distance Vector Calculation
 
-//     TestDVUpdate();
-//     printf("Test Case 3: PASS Updated new shortest path\n");
+    TestDVUpdate();
+    printf("Test Case 3: PASS Updated new shortest path\n");
 
-// //Testing Forced Update Rule
+//Testing Forced Update Rule
 
-//     TestForcedUpd();
-//     printf("Test Case 4: PASS Forced update rule taken care\n");
+    TestForcedUpd();
+    printf("Test Case 4: PASS Forced update rule taken care\n");
 
-// //Testing Split Horizon Rule
+//Testing Split Horizon Rule
 
-//     TestSplitHorizon();
-//     printf("Test Case 5: PASS Split horizon rule taken care\n");
+    TestSplitHorizon();
+    printf("Test Case 5: PASS Split horizon rule taken care\n");
 
 return 0;
 
