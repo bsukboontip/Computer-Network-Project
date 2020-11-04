@@ -1,0 +1,4 @@
+./ne 2107 4_routers.conf
+
+./router 0 localhost 2107 3017
+./router 1 localhost 2107 4017
