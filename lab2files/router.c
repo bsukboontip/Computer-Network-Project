@@ -130,7 +130,7 @@ int main (int argc, char *argv[]) {
 
 	for (i = 0; i < num_neighbors; i++) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
-		update_list[i].cost = init_response.nbrcost[i].nbr;
+		update_list[i].sender_id = init_response.nbrcost[i].nbr;
 		update_list[i].last_update = time(NULL);
 	}
 
@@ -185,11 +185,12 @@ void *udp_thread(void * arg) {
 		}
 
 		flag = UpdateRoutes(&update_response, cost, router_id);
+		printf("flag: %d\n", flag);
 		if (flag) {
-			printf("Routes Updated\n");
+			// printf("Routes Updated\n");
 			PrintRoutes(fp, update_response.dest_id);
 			fflush(fp);
-			last_changed = time(NULL);
+			last_converge = time(NULL);
 		}
 
 		pthread_mutex_unlock(&lock);
