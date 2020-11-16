@@ -6,6 +6,27 @@
 #include "ne.h"
 #include "router.h"
 
+struct update_tracker {
+	unsigned int sender_id;
+	unsigned int cost;
+	unsigned int last_update;
+};
+
+//Global Variables
+struct update_tracker update_list[MAX_ROUTERS];
+pthread_mutex_t lock;
+int ne_listenfd;
+int last_changed;
+unsigned int nbr_num = 0;
+FILE * fp;
+
+//Function Declarations
+int udp_open_listenfd(int port);
+void logRoutes(int r_ID);
+void *udp_thread(void * arg);
+void *timer_thread(void * arg);
+
+
 //open_listenfd from lab 1
 int udp_open_listenfd(int port) 
 {
@@ -36,7 +57,7 @@ int udp_open_listenfd(int port)
 void logRoutes(int r_ID) {
 	char filename[20];
 	sprintf(filename, "router%d.log", r_ID);
-	FILE * fp = fopen(filename, "w");
+	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
 	fflush(fp);
 	fclose(fp);
@@ -49,7 +70,7 @@ int main (int argc, char *argv[]) {
 	}
 
 	//VARIABLE DECLARATIONS
-	int ne_port, router_port, ne_listenfd, router_id; 
+	int ne_port, router_port, router_id; 
 	char *hostname;
 	struct hostent *hp;
 	struct sockaddr_in recv_addr;
@@ -57,9 +78,9 @@ int main (int argc, char *argv[]) {
 	struct pkt_INIT_RESPONSE init_response;
 	struct pkt_INIT_REQUEST init_request;
 	socklen_t len;
-	//pthread_mutex_t lock;
-	//pthread_t udp_thread_id;
-	//pthread_t timer_thread_id;
+
+	pthread_t udp_thread_id;
+	pthread_t timer_thread_id;
 
 	router_id = atoi(argv[1]);
 	hostname = argv[2];
@@ -104,6 +125,11 @@ int main (int argc, char *argv[]) {
 	printf("begin init\n");
 	ntoh_pkt_INIT_RESPONSE(&init_response);
 	InitRoutingTbl(&init_response, router_id);
+	nbr_num = init_response.no_nbr;
+
+	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
+	// pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
+
 	printf("init successful\n");
 
 	//Print initial neighbor info onto logfiles
@@ -112,4 +138,49 @@ int main (int argc, char *argv[]) {
 	//Threading operations
 
 	return EXIT_SUCCESS;
+}
+
+void *udp_thread(void * arg) {
+	struct pkt_RT_UPDATE update_response;
+	struct sockaddr_in recv_addr;
+	socklen_t len;
+	int i = 0;
+	int flag = 0;
+	unsigned int cost = 0;
+
+	bzero(&recv_addr, sizeof(recv_addr));
+	len = sizeof(recv_addr);
+
+	while(1) {
+		int recv = recvfrom(ne_listenfd, &update_response, sizeof(update_response), 0, (struct sockaddr *) &recv_addr, &len);
+		if (recv < 0) {
+			printf("Failed to receive\n");
+			return;
+		}
+		ntoh_pkt_RT_UPDATE(&update_response);
+
+		pthread_mutex_lock(&lock);
+		for (i = 0; i < nbr_num; i++) {
+			if (update_response.sender_id == update_list[i].sender_id) {
+				update_list[i].last_update = time(NULL);
+				cost = update_list[i].cost;
+				break;
+			}
+		}
+
+		flag = UpdateRoutes(&update_response, cost, update_response.dest_id);
+		if (flag) {
+			PrintRoutes(fp, update_response.dest_id);
+			fflush(fp);
+			last_changed = time(NULL);
+		}
+
+		pthread_mutex_unlock(&lock);
+	}
+	
+	return;
+}
+
+void *timer_thread(void * arg) {
+	return;
 }
