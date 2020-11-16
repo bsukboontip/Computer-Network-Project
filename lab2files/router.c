@@ -15,8 +15,7 @@ struct update_tracker {
 //Global Variables
 struct update_tracker update_list[MAX_ROUTERS];
 pthread_mutex_t lock;
-int ne_listenfd;
-int last_changed;
+int ne_listenfd, last_changed;
 unsigned int nbr_num = 0;
 FILE * fp;
 
@@ -70,7 +69,7 @@ int main (int argc, char *argv[]) {
 	}
 
 	//VARIABLE DECLARATIONS
-	int ne_port, router_port, router_id; 
+	int ne_port, router_port, router_id, i; 
 	char *hostname;
 	struct hostent *hp;
 	struct sockaddr_in recv_addr;
@@ -126,6 +125,12 @@ int main (int argc, char *argv[]) {
 	ntoh_pkt_INIT_RESPONSE(&init_response);
 	InitRoutingTbl(&init_response, router_id);
 	nbr_num = init_response.no_nbr;
+
+	for (i = 0; i < nbr_num; i++) {
+		update_list[i].cost = init_response.nbrcost[i].cost;
+		update_list[i].cost = init_response.nbrcost[i].nbr;
+		update_list[i].last_update = time(NULL);
+	}
 
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
 	// pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
