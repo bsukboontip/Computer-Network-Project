@@ -15,9 +15,11 @@ struct update_tracker {
 //Global Variables
 struct update_tracker update_list[MAX_ROUTERS];
 pthread_mutex_t lock;
-int ne_listenfd, last_changed;
-unsigned int nbr_num = 0;
-FILE * fp;
+int ne_listenfd, last_update_time, last_converge, current_time, last_changed;
+unsigned int num_neighbors = 0;
+unsigned int router_id;
+FILE * fp = NULL;
+struct sockaddr_in server_addr;
 
 //Function Declarations
 int udp_open_listenfd(int port);
@@ -59,7 +61,7 @@ void logRoutes(int r_ID) {
 	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
 	fflush(fp);
-	fclose(fp);
+	// fclose(fp);
 }
 
 int main (int argc, char *argv[]) {
@@ -69,7 +71,7 @@ int main (int argc, char *argv[]) {
 	}
 
 	//VARIABLE DECLARATIONS
-	int ne_port, router_port, router_id, i; 
+	int ne_port, router_port, i; 
 	char *hostname;
 	struct hostent *hp;
 	struct sockaddr_in recv_addr;
@@ -121,27 +123,34 @@ int main (int argc, char *argv[]) {
 	if (recv < 0) {
 		printf("Failed to receive\n");
 	}
-	printf("begin init\n");
+	// printf("begin init\n");
 	ntoh_pkt_INIT_RESPONSE(&init_response);
 	InitRoutingTbl(&init_response, router_id);
-	nbr_num = init_response.no_nbr;
+	logRoutes(router_id);
+	num_neighbors = init_response.no_nbr;
 
-	for (i = 0; i < nbr_num; i++) {
+	for (i = 0; i < num_neighbors; i++) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].cost = init_response.nbrcost[i].nbr;
 		update_list[i].last_update = time(NULL);
 	}
 
+	pthread_mutex_init(&lock, NULL);
+	last_update_time = time(NULL);
+	last_converge = time(NULL);
+
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
-	// pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
+	pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
+
+	pthread_join(udp_thread_id, NULL);
+	pthread_join(timer_thread_id, NULL);
 
 	printf("init successful\n");
 
 	//Print initial neighbor info onto logfiles
-	logRoutes(router_id);
 
 	//Threading operations
-
+	fclose(fp);
 	return EXIT_SUCCESS;
 }
 
@@ -152,7 +161,6 @@ void *udp_thread(void * arg) {
 	int i = 0;
 	int flag = 0;
 	unsigned int cost = 0;
-
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
 
@@ -160,12 +168,13 @@ void *udp_thread(void * arg) {
 		int recv = recvfrom(ne_listenfd, &update_response, sizeof(update_response), 0, (struct sockaddr *) &recv_addr, &len);
 		if (recv < 0) {
 			printf("Failed to receive\n");
-			return;
+			return NULL;
 		}
+		// printf("IN UDP_THREAD\n");
 		ntoh_pkt_RT_UPDATE(&update_response);
 
 		pthread_mutex_lock(&lock);
-		for (i = 0; i < nbr_num; i++) {
+		for (i = 0; i < num_neighbors; i++) {
 			if (update_response.sender_id == update_list[i].sender_id) {
 				update_list[i].last_update = time(NULL);
 				cost = update_list[i].cost;
@@ -173,8 +182,9 @@ void *udp_thread(void * arg) {
 			}
 		}
 
-		flag = UpdateRoutes(&update_response, cost, update_response.dest_id);
+		flag = UpdateRoutes(&update_response, cost, router_id);
 		if (flag) {
+			printf("Routes Updated\n");
 			PrintRoutes(fp, update_response.dest_id);
 			fflush(fp);
 			last_changed = time(NULL);
@@ -183,9 +193,71 @@ void *udp_thread(void * arg) {
 		pthread_mutex_unlock(&lock);
 	}
 	
-	return;
+	return NULL;
 }
 
-void *timer_thread(void * arg) {
-	return;
+void *timer_thread(void * args) {
+	struct pkt_RT_UPDATE rt_update;
+	int i, send;
+
+	int DeadNbr[MAX_ROUTERS];
+	while (i < MAX_ROUTERS) {
+		DeadNbr[i] = 0;
+		i++;
+	}
+	
+	while (1) {
+		//Check if last update expired. If so, send update packet to all neighbors
+		pthread_mutex_lock(&lock);
+		i = 0;
+		// printf("IN TIMER_THREAD\n");
+		current_time = time(NULL);
+		if ((current_time - last_update_time) >= UPDATE_INTERVAL) {
+			while (i < num_neighbors) {
+				ConvertTabletoPkt(&rt_update, router_id);
+				rt_update.dest_id = update_list[i].sender_id;
+				hton_pkt_RT_UPDATE(&rt_update);
+				send = sendto(ne_listenfd, &rt_update, sizeof(rt_update), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+				if (send < 0) {
+					printf("Failed to send\n");
+				}
+				printf("pkt sent\n");
+				last_update_time = time(NULL);
+				i++;
+			}
+		}
+		pthread_mutex_unlock(&lock);
+
+		//Check for dead neighbors
+		pthread_mutex_lock(&lock);
+		i = 0;
+		while(i < num_neighbors) {
+			current_time = time(NULL);
+			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
+				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
+				if(DeadNbr[i] == 0) {
+					PrintRoutes(fp, router_id);
+					DeadNbr[i] = 1;
+					last_converge = time(NULL);
+				}
+			}
+			else {
+				DeadNbr[i] = 0;
+			}
+		}
+		pthread_mutex_unlock(&lock);
+
+		//Check for convergence
+		pthread_mutex_lock(&lock);
+		current_time = time(NULL);
+		if((current_time - last_converge) > CONVERGE_TIMEOUT) {
+			//printf("converged\n");
+			PrintRoutes(fp, router_id);
+			fprintf(fptr, "%d:Converged\n", (int) time(NULL) - start_time);
+			fflush(fp);
+			last_converge = time(NULL);
+		}
+		pthread_mutex_unlock(&lock);
+	}
+	return NULL;
 }
