@@ -15,7 +15,7 @@ struct update_tracker {
 //Global Variables
 struct update_tracker update_list[MAX_ROUTERS];
 pthread_mutex_t lock;
-int ne_listenfd, last_update_time, last_converge, current_time, last_changed, start_time;
+int ne_listenfd, last_update_time, last_converge, current_time, last_changed, start_time, converge_flag;
 unsigned int num_neighbors = 0;
 unsigned int router_id;
 FILE * fp = NULL;
@@ -124,6 +124,12 @@ int main (int argc, char *argv[]) {
 	}
 	// printf("begin init\n");
 	ntoh_pkt_INIT_RESPONSE(&init_response);
+
+	last_update_time = time(NULL);
+	last_converge = time(NULL);
+	start_time = time(NULL);
+	converge_flag = 0;
+	
 	InitRoutingTbl(&init_response, router_id);
 	logRoutes(router_id);
 	num_neighbors = init_response.no_nbr;
@@ -133,10 +139,6 @@ int main (int argc, char *argv[]) {
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
 		update_list[i].last_update = time(NULL);
 	}
-
-	last_update_time = time(NULL);
-	last_converge = time(NULL);
-	start_time = time(NULL);
 
 	pthread_mutex_init(&lock, NULL);
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
@@ -188,8 +190,8 @@ void *udp_thread(void * arg) {
 			// printf("Routes Updated\n");
 			PrintRoutes(fp, update_response.dest_id);
 			fflush(fp);
-			printf("%d, last_converge change in udp\n", last_converge);
 			last_converge = time(NULL);
+			converge_flag = 1;
 		}
 
 		pthread_mutex_unlock(&lock);
@@ -243,6 +245,7 @@ void *timer_thread(void * args) {
 					DeadNbr[i] = 1;
 					// printf("%d, last_converge change in timer\n", last_converge);
 					last_converge = time(NULL);
+					converge_flag = 1;
 				}
 			}
 			else {
@@ -255,12 +258,13 @@ void *timer_thread(void * args) {
 		pthread_mutex_lock(&lock);
 		current_time = time(NULL);
 		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
-		if((current_time - last_converge) > CONVERGE_TIMEOUT) {
+		if(((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
 			// PrintRoutes(fp, router_id);
 			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
 			printf("%d:Converged\n", (int) current_time - start_time);
 			fflush(fp);
-			last_converge = time(NULL);
+			// last_converge = time(NULL);
+			converge_flag = 0;
 		}
 		pthread_mutex_unlock(&lock);
 	}

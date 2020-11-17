@@ -65,7 +65,12 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 		for (j = 0; j < NumRoutes; j++) {
 			// printf("%d, %d\n", routingTable[j].dest_id, RecvdUpdatePacket->route[i].dest_id);
 			if (routingTable[j].dest_id == RecvdUpdatePacket->route[i].dest_id) {
-				new_cost = RecvdUpdatePacket->route[i].cost + costToNbr;
+				if (RecvdUpdatePacket->route[i].cost != INFINITY) {
+					new_cost = RecvdUpdatePacket->route[i].cost + costToNbr;
+				}
+				else {
+					new_cost = INFINITY;
+				}
 				loop_flag = 1;
 				p_len = RecvdUpdatePacket->route[i].path_len;
 				split_horizon_path_flag = 0;
