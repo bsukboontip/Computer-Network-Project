@@ -220,13 +220,6 @@ void *timer_thread(void * args) {
 	// FILE * fp = NULL;
 	// sprintf(filename, "router%d.log", router_id);
 
-	// int DeadNbr[MAX_ROUTERS];
-	// i = 0;
-	// while (i < MAX_ROUTERS) {
-	// 	DeadNbr[i] = 0;
-	// 	i++;
-	// }
-
 	while (1) {
 		//Check if last update expired. If so, send update packet to all neighbors
 		pthread_mutex_lock(&lock);
