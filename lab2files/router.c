@@ -10,6 +10,7 @@ struct update_tracker {
 	unsigned int sender_id;
 	unsigned int cost;
 	unsigned int last_update;
+	int if_dead;
 };
 
 //Global Variables
@@ -18,6 +19,7 @@ pthread_mutex_t lock;
 int ne_listenfd, last_update_time, last_converge, current_time, last_changed, start_time, converge_flag;
 unsigned int num_neighbors = 0;
 unsigned int router_id;
+FILE * fp = NULL;
 
 struct sockaddr_in server_addr;
 
@@ -57,12 +59,12 @@ int udp_open_listenfd(int port)
 
 void logRoutes(int r_ID) {
 	char filename[20];
-	FILE * fp = NULL;
+	// FILE * fp = NULL;
 	sprintf(filename, "router%d.log", r_ID);
 	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
 	fflush(fp);
-	fclose(fp);
+	// fclose(fp);
 }
 
 int main (int argc, char *argv[]) {
@@ -140,6 +142,7 @@ int main (int argc, char *argv[]) {
 	for (i = 0; i < num_neighbors; i++) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
+		update_list[i].if_dead = 0;
 		update_list[i].last_update = time(NULL);
 	}
 
@@ -153,7 +156,7 @@ int main (int argc, char *argv[]) {
 	//Print initial neighbor info onto logfiles
 
 	//Threading operations
-	// fclose(fp);
+	fclose(fp);
 	return EXIT_SUCCESS;
 }
 
@@ -168,9 +171,9 @@ void *udp_thread(void * arg) {
 	len = sizeof(recv_addr);
 	// printf("IN UDP_THREAD\n");
 
-	char filename[20];
-	FILE * fp = NULL;
-	sprintf(filename, "router%d.log", router_id);
+	// char filename[20];
+	// FILE * fp = NULL;
+	// sprintf(filename, "router%d.log", router_id);
 
 	while(1) {
 		
@@ -196,11 +199,10 @@ void *udp_thread(void * arg) {
 		flag = UpdateRoutes(&update_response, cost, router_id);
 		// printf("flag: %d\n", flag);
 		if (flag) {
-			// printf("Routes Updated\n");
-			fp = fopen(filename, "w");
-			PrintRoutes(fp, update_response.dest_id);
-			fflush(fp);
-			fclose(fp);
+			// fp = fopen(filename, "w");
+			PrintRoutes(fp, router_id);
+			// PrintRoutes(fp, update_response.dest_id);
+			// fclose(fp);
 			last_converge = time(NULL);
 			converge_flag = 1;
 		}
@@ -213,16 +215,17 @@ void *udp_thread(void * arg) {
 void *timer_thread(void * args) {
 	struct pkt_RT_UPDATE rt_update;
 	int i, send;
-	char filename[20];
-	FILE * fp = NULL;
-	sprintf(filename, "router%d.log", router_id);
 
-	int DeadNbr[MAX_ROUTERS];
-	i = 0;
-	while (i < MAX_ROUTERS) {
-		DeadNbr[i] = 0;
-		i++;
-	}
+	// char filename[20];
+	// FILE * fp = NULL;
+	// sprintf(filename, "router%d.log", router_id);
+
+	// int DeadNbr[MAX_ROUTERS];
+	// i = 0;
+	// while (i < MAX_ROUTERS) {
+	// 	DeadNbr[i] = 0;
+	// 	i++;
+	// }
 
 	while (1) {
 		//Check if last update expired. If so, send update packet to all neighbors
@@ -257,19 +260,18 @@ void *timer_thread(void * args) {
 			current_time = time(NULL);
 			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
 				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
-				if(DeadNbr[i] == 0) {
-					fp = fopen(filename, "w");
+				if(update_list[i].if_dead == 0) {
+					// fp = fopen(filename, "w");
 					PrintRoutes(fp, router_id);
-					fflush(fp);
-					fclose(fp);
-					DeadNbr[i] = 1;
+					// fclose(fp);
+					update_list[i].if_dead = 1;
 					// printf("%d, last_converge change in timer\n", last_converge);
 					last_converge = time(NULL);
 					converge_flag = 1;
 				}
 			}
 			else {
-				DeadNbr[i] = 0;
+				update_list[i].if_dead = 0;
 			}
 			i++;
 		}
@@ -280,10 +282,10 @@ void *timer_thread(void * args) {
 		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
 		if(((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
 			// PrintRoutes(fp, router_id);
-			fp = fopen(filename, "w");
+			// fp = fopen(filename, "w");
 			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
 			fflush(fp);
-			fclose(fp);
+			// fclose(fp);
 			printf("%d:Converged\n", (int) current_time - start_time);
 			converge_flag = 0;
 		}
