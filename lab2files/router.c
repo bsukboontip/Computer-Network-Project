@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,7 +27,6 @@ void logRoutes(int r_ID);
 void *udp_thread(void * arg);
 void *timer_thread(void * arg);
 
-
 //open_listenfd from lab 1
 int udp_open_listenfd(int port) 
 {
@@ -57,11 +55,10 @@ int udp_open_listenfd(int port)
 }
 
 void logRoutes(int r_ID) {
-	char filename[20];
-	fp = fopen(filename, "w");
+	char filename[15];
 	sprintf(filename, "router%d.log", r_ID);
+	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
-	fflush(fp);
 	// fclose(fp);
 }
 
@@ -110,9 +107,9 @@ int main (int argc, char *argv[]) {
 	//Initial request
 	bzero(&init_request, sizeof(init_request));
 	init_request.router_id = htonl(router_id);
-	int send_size = sizeof(server_addr);
-	int pkt_size = sizeof(init_request);
-	int send = sendto(ne_listenfd, &init_request, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
+	//int send_size = sizeof(server_addr);
+	//int pkt_size = sizeof(init_request);
+	int send = sendto(ne_listenfd, &init_request, sizeof(init_request), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
 	if (send < 0) {
 		printf("Failed to send\n");
 	}
@@ -120,8 +117,8 @@ int main (int argc, char *argv[]) {
 	//Receive response
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
-	pkt_size = sizeof(init_response);
-	int recv = recvfrom(ne_listenfd, &init_response, pkt_size, 0, (struct sockaddr *) &recv_addr, &len);
+	//pkt_size = sizeof(init_response);
+	int recv = recvfrom(ne_listenfd, &init_response, sizeof(init_response), 0, (struct sockaddr *) &recv_addr, &len);
 	if (recv < 0) {
 		printf("Failed to receive\n");
 	}
@@ -130,18 +127,19 @@ int main (int argc, char *argv[]) {
 	
 	InitRoutingTbl(&init_response, router_id);
 	logRoutes(router_id);
-	num_neighbors = init_response.no_nbr;
 
-	last_update_time = time(NULL);
-	last_converge = time(NULL);
-	start_time = time(NULL);
-	converge_flag = 0;
+	num_neighbors = init_response.no_nbr;
 
 	for (i = 0; i < num_neighbors; i++) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
 		update_list[i].last_update = time(NULL);
 	}
+
+	last_update_time = time(NULL);
+	last_converge = time(NULL);
+	start_time = time(NULL);
+	converge_flag = 0;
 
 	pthread_mutex_init(&lock, NULL);
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
@@ -151,7 +149,7 @@ int main (int argc, char *argv[]) {
 	pthread_join(timer_thread_id, NULL);
 
 	//Print initial neighbor info onto logfiles
-
+	printf("END OF MAIN\n");
 	//Threading operations
 	fclose(fp);
 	return EXIT_SUCCESS;
@@ -193,7 +191,6 @@ void *udp_thread(void * arg) {
 		if (flag) {
 			// printf("Routes Updated\n");
 			PrintRoutes(fp, update_response.dest_id);
-			fflush(fp);
 			last_converge = time(NULL);
 			converge_flag = 1;
 		}
@@ -270,7 +267,6 @@ void *timer_thread(void * args) {
 			// PrintRoutes(fp, router_id);
 			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
 			printf("%d:Converged\n", (int) current_time - start_time);
-			fflush(fp);
 			// last_converge = time(NULL);
 			converge_flag = 0;
 		}
