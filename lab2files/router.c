@@ -20,6 +20,7 @@ int ne_listenfd, last_update_time, last_converge, current_time, last_changed, st
 unsigned int num_neighbors = 0;
 unsigned int router_id;
 FILE * fp = NULL;
+char filename[20];
 
 struct sockaddr_in server_addr;
 
@@ -58,13 +59,13 @@ int udp_open_listenfd(int port)
 }
 
 void logRoutes(int r_ID) {
-	char filename[20];
+	// char filename[20];
 	// FILE * fp = NULL;
 	sprintf(filename, "router%d.log", r_ID);
 	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
 	fflush(fp);
-	// fclose(fp);
+	fclose(fp);
 }
 
 int main (int argc, char *argv[]) {
@@ -150,13 +151,11 @@ int main (int argc, char *argv[]) {
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
 	pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
 
+	// fclose(fp);
+
 	pthread_join(udp_thread_id, NULL);
 	pthread_join(timer_thread_id, NULL);
-
-	//Print initial neighbor info onto logfiles
-
-	//Threading operations
-	fclose(fp);
+	
 	return EXIT_SUCCESS;
 }
 
@@ -199,10 +198,10 @@ void *udp_thread(void * arg) {
 		flag = UpdateRoutes(&update_response, cost, router_id);
 		// printf("flag: %d\n", flag);
 		if (flag) {
-			// fp = fopen(filename, "w");
+			fp = fopen(filename, "a");
 			PrintRoutes(fp, router_id);
 			// PrintRoutes(fp, update_response.dest_id);
-			// fclose(fp);
+			fclose(fp);
 			last_converge = time(NULL);
 			converge_flag = 1;
 		}
@@ -254,9 +253,9 @@ void *timer_thread(void * args) {
 			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
 				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
 				if(update_list[i].if_dead == 0) {
-					// fp = fopen(filename, "w");
+					fp = fopen(filename, "a");
 					PrintRoutes(fp, router_id);
-					// fclose(fp);
+					fclose(fp);
 					update_list[i].if_dead = 1;
 					// printf("%d, last_converge change in timer\n", last_converge);
 					last_converge = time(NULL);
@@ -275,10 +274,10 @@ void *timer_thread(void * args) {
 		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
 		if(((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
 			// PrintRoutes(fp, router_id);
-			// fp = fopen(filename, "w");
+			fp = fopen(filename, "a");
 			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
 			fflush(fp);
-			// fclose(fp);
+			fclose(fp);
 			printf("%d:Converged\n", (int) current_time - start_time);
 			converge_flag = 0;
 		}
