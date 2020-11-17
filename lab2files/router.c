@@ -13,13 +13,21 @@ struct update_tracker {
 	unsigned int last_update;
 };
 
-//Global variables
-	pthread_mutex_t lock;
-	struct update_tracker update_list[MAX_ROUTERS];
-	int ne_listenfd, last_update_time, last_converge, current_time; 
-	unsigned int router_id, num_neighbors;
-	struct sockaddr_in server_addr;
-	FILE * fp = NULL;
+//Global Variables
+struct update_tracker update_list[MAX_ROUTERS];
+pthread_mutex_t lock;
+int ne_listenfd, last_update_time, last_converge, current_time, last_changed, start_time, converge_flag;
+unsigned int num_neighbors = 0;
+unsigned int router_id;
+FILE * fp = NULL;
+struct sockaddr_in server_addr;
+
+//Function Declarations
+int udp_open_listenfd(int port);
+void logRoutes(int r_ID);
+void *udp_thread(void * arg);
+void *timer_thread(void * arg);
+
 
 //open_listenfd from lab 1
 int udp_open_listenfd(int port) 
@@ -50,74 +58,11 @@ int udp_open_listenfd(int port)
 
 void logRoutes(int r_ID) {
 	char filename[20];
-	sprintf(filename, "router%d.log", r_ID);
 	fp = fopen(filename, "w");
+	sprintf(filename, "router%d.log", r_ID);
 	PrintRoutes(fp, r_ID);
 	fflush(fp);
-	//fclose(fp);
-}
-
-
-void *timer_thread(void * args) {
-	struct pkt_RT_UPDATE rt_update;
-	int i = 0;
-
-	int DeadNbr[MAX_ROUTERS];
-	while(i < MAX_ROUTERS) {
-		DeadNbr[i] = 0;
-		i++;
-	}
-	
-	while(1) {
-		//Check if last update expired. If so, send update packet to all neighbors
-		pthread_mutex_lock(&lock);
-		i = 0;
-		current_time = time(NULL);
-		if((current_time - last_update_time) >= UPDATE_INTERVAL) {
-			while(i < num_neighbors) {
-				ConvertTabletoPkt(&rt_update, router_id);
-				rt_update.dest_id = update_list[i].sender_id;
-				hton_pkt_RT_UPDATE (&rt_update);
-				sendto(ne_listenfd, &rt_update, sizeof(rt_update), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
-				last_update_time = time(NULL);
-				i++;
-			}
-		} 
-		pthread_mutex_unlock(&lock);
-
-		//Check for dead neighbors
-		pthread_mutex_lock(&lock);
-		i = 0;
-		while(i < num_neighbors) {
-			current_time = time(NULL);
-			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
-				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
-				if(DeadNbr[i] == 0) {
-					PrintRoutes(fp, router_id);
-					DeadNbr[i] = 1;
-					last_converge = time(NULL);
-				}
-			}
-			else {
-				DeadNbr[i] = 0;
-			}
-		}
-		pthread_mutex_unlock(&lock);
-
-		//Check for convergence
-		pthread_mutex_lock(&lock);
-		current_time = time(NULL);
-		if((current_time - last_converge) > CONVERGE_TIMEOUT) {
-			//printf("converged\n");
-			PrintRoutes(fp, router_id);
-			fprintf(fptr, "%d:Converged\n", (int) time(NULL) - start_time);
-			fflush(fp);
-			last_converge = time(NULL);
-		}
-		pthread_mutex_unlock(&lock);
-	}
-
-	return NULL;
+	// fclose(fp);
 }
 
 int main (int argc, char *argv[]) {
@@ -127,13 +72,14 @@ int main (int argc, char *argv[]) {
 	}
 
 	//VARIABLE DECLARATIONS
-	int ne_port, router_port; 
+	int ne_port, router_port, i; 
 	char *hostname;
 	struct hostent *hp;
 	struct sockaddr_in recv_addr;
 	struct pkt_INIT_RESPONSE init_response;
 	struct pkt_INIT_REQUEST init_request;
 	socklen_t len;
+
 	pthread_t udp_thread_id;
 	pthread_t timer_thread_id;
 
@@ -164,8 +110,9 @@ int main (int argc, char *argv[]) {
 	//Initial request
 	bzero(&init_request, sizeof(init_request));
 	init_request.router_id = htonl(router_id);
-
-	int send = sendto(ne_listenfd, &init_request, sizeof(init_request), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
+	int send_size = sizeof(server_addr);
+	int pkt_size = sizeof(init_request);
+	int send = sendto(ne_listenfd, &init_request, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
 	if (send < 0) {
 		printf("Failed to send\n");
 	}
@@ -173,25 +120,161 @@ int main (int argc, char *argv[]) {
 	//Receive response
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
-	int recv = recvfrom(ne_listenfd, &init_response, sizeof(init_response), 0, (struct sockaddr *) &recv_addr, &len);
+	pkt_size = sizeof(init_response);
+	int recv = recvfrom(ne_listenfd, &init_response, pkt_size, 0, (struct sockaddr *) &recv_addr, &len);
 	if (recv < 0) {
 		printf("Failed to receive\n");
 	}
-	printf("begin init\n");
+	// printf("begin init\n");
 	ntoh_pkt_INIT_RESPONSE(&init_response);
+	
 	InitRoutingTbl(&init_response, router_id);
-	num_neighbors = init_response.no_nbr;
-	printf("num neighbors = %d\n", num_neighbors);
-	printf("init successful\n");
-
-	//Print initial neighbor info onto logfiles
 	logRoutes(router_id);
+	num_neighbors = init_response.no_nbr;
 
-	//Threading operations
-	pthread_mutex_init(&lock, NULL);
 	last_update_time = time(NULL);
 	last_converge = time(NULL);
+	start_time = time(NULL);
+	converge_flag = 0;
 
+	for (i = 0; i < num_neighbors; i++) {
+		update_list[i].cost = init_response.nbrcost[i].cost;
+		update_list[i].sender_id = init_response.nbrcost[i].nbr;
+		update_list[i].last_update = time(NULL);
+	}
+
+	pthread_mutex_init(&lock, NULL);
+	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
+	pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
+
+	pthread_join(udp_thread_id, NULL);
+	pthread_join(timer_thread_id, NULL);
+
+	//Print initial neighbor info onto logfiles
+
+	//Threading operations
 	fclose(fp);
 	return EXIT_SUCCESS;
+}
+
+void *udp_thread(void * arg) {
+	struct pkt_RT_UPDATE update_response;
+	struct sockaddr_in recv_addr;
+	socklen_t len;
+	int i = 0;
+	int flag = 0;
+	unsigned int cost = 0;
+	bzero(&recv_addr, sizeof(recv_addr));
+	len = sizeof(recv_addr);
+	// printf("IN UDP_THREAD\n");
+
+	while(1) {
+		int pkt_size = sizeof(update_response);
+		int recv = recvfrom(ne_listenfd, &update_response, pkt_size, 0, (struct sockaddr *) &recv_addr, &len);
+		if (recv < 0) {
+			printf("Failed to receive\n");
+			return NULL;
+		}
+		ntoh_pkt_RT_UPDATE(&update_response);
+
+		pthread_mutex_lock(&lock);
+
+		// Get cost
+		for (i = 0; i < num_neighbors; i++) {
+			if (update_response.sender_id == update_list[i].sender_id) {
+				update_list[i].last_update = time(NULL);
+				cost = update_list[i].cost;
+				break;
+			}
+		}
+
+		flag = UpdateRoutes(&update_response, cost, router_id);
+		// printf("flag: %d\n", flag);
+		if (flag) {
+			// printf("Routes Updated\n");
+			PrintRoutes(fp, update_response.dest_id);
+			fflush(fp);
+			last_converge = time(NULL);
+			converge_flag = 1;
+		}
+
+		pthread_mutex_unlock(&lock);
+	}
+	
+	return NULL;
+}
+
+void *timer_thread(void * args) {
+	struct pkt_RT_UPDATE rt_update;
+	int i, send;
+
+	int DeadNbr[MAX_ROUTERS];
+	i = 0;
+	while (i < MAX_ROUTERS) {
+		DeadNbr[i] = 0;
+		i++;
+	}
+
+	while (1) {
+		//Check if last update expired. If so, send update packet to all neighbors
+		pthread_mutex_lock(&lock);
+		// printf("IN TIMER_THREAD\n");
+		i = 0;
+		current_time = time(NULL);
+		// printf("Curr_time: %d, last_update_time %d\n", current_time, last_update_time);
+		if ((current_time - last_update_time) >= UPDATE_INTERVAL) {
+			while (i < num_neighbors) {
+				bzero(&rt_update, sizeof(rt_update));
+				ConvertTabletoPkt(&rt_update, router_id);
+				rt_update.dest_id = update_list[i].sender_id;
+				hton_pkt_RT_UPDATE(&rt_update);
+				int pkt_size = sizeof(rt_update);
+				int send_size = sizeof(server_addr);
+				send = sendto(ne_listenfd, &rt_update, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
+				if (send < 0) {
+					printf("Failed to send\n");
+				}
+				// printf("pkt sent\n");
+				last_update_time = time(NULL);
+				i++;
+			}
+		}
+		pthread_mutex_unlock(&lock);
+		//Check for dead neighbors
+		pthread_mutex_lock(&lock);
+		i = 0;
+		while(i < num_neighbors) {
+			// printf("IN TIMER_THREAD\n");
+			current_time = time(NULL);
+			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
+				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
+				if(DeadNbr[i] == 0) {
+					PrintRoutes(fp, router_id);
+					DeadNbr[i] = 1;
+					// printf("%d, last_converge change in timer\n", last_converge);
+					last_converge = time(NULL);
+					converge_flag = 1;
+				}
+			}
+			else {
+				DeadNbr[i] = 0;
+			}
+			i++;
+		}
+		pthread_mutex_unlock(&lock);
+		//Check for convergence
+		pthread_mutex_lock(&lock);
+		current_time = time(NULL);
+		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
+		if(((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
+			// PrintRoutes(fp, router_id);
+			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
+			printf("%d:Converged\n", (int) current_time - start_time);
+			fflush(fp);
+			// last_converge = time(NULL);
+			converge_flag = 0;
+		}
+		pthread_mutex_unlock(&lock);
+	}
+	return NULL;
 }
