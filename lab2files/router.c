@@ -145,8 +145,6 @@ int main (int argc, char *argv[]) {
 	pthread_join(udp_thread_id, NULL);
 	pthread_join(timer_thread_id, NULL);
 
-	printf("init successful\n");
-
 	//Print initial neighbor info onto logfiles
 
 	//Threading operations
@@ -185,11 +183,12 @@ void *udp_thread(void * arg) {
 		}
 
 		flag = UpdateRoutes(&update_response, cost, router_id);
-		printf("flag: %d\n", flag);
+		// printf("flag: %d\n", flag);
 		if (flag) {
 			// printf("Routes Updated\n");
 			PrintRoutes(fp, update_response.dest_id);
 			fflush(fp);
+			printf("%d, last_converge change in udp\n", last_converge);
 			last_converge = time(NULL);
 		}
 
@@ -242,6 +241,7 @@ void *timer_thread(void * args) {
 				if(DeadNbr[i] == 0) {
 					PrintRoutes(fp, router_id);
 					DeadNbr[i] = 1;
+					// printf("%d, last_converge change in timer\n", last_converge);
 					last_converge = time(NULL);
 				}
 			}
@@ -254,10 +254,11 @@ void *timer_thread(void * args) {
 		//Check for convergence
 		pthread_mutex_lock(&lock);
 		current_time = time(NULL);
+		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
 		if((current_time - last_converge) > CONVERGE_TIMEOUT) {
-			//printf("converged\n");
-			PrintRoutes(fp, router_id);
-			fprintf(fp, "%d:Converged\n", (int) time(NULL) - start_time);
+			// PrintRoutes(fp, router_id);
+			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
+			printf("%d:Converged\n", (int) current_time - start_time);
 			fflush(fp);
 			last_converge = time(NULL);
 		}

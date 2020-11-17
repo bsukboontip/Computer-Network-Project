@@ -51,6 +51,7 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 	int out_flag = 0;
 	int loop_flag = 0;
 	int split_horizon_path_flag = 0;
+	int temp_cost, temp_next_hop;
 	// int forced_update_path_flag = 0;
 	unsigned int new_cost = 0;
 	unsigned int p_len = 0;
@@ -84,6 +85,9 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 
 				if ((routingTable[j].next_hop == RecvdUpdatePacket->sender_id) || ((new_cost < routingTable[j].cost) && (split_horizon_path_flag == 0))) {
 				// if ((forced_update_path_flag == 1) || ((new_cost < routingTable[j].cost) && (split_horizon_path_flag == 0))) {
+					// printf("Before hop: %d, cost: %d\n", routingTable[j].next_hop, routingTable[j].cost);
+					temp_next_hop = routingTable[j].next_hop;
+					temp_cost = routingTable[j].cost;
 					routingTable[j].next_hop = RecvdUpdatePacket->sender_id;
 					routingTable[j].cost = new_cost;
 					p_len = RecvdUpdatePacket->route[i].path_len;
@@ -92,8 +96,13 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 						routingTable[j].path[k] = RecvdUpdatePacket->route[i].path[k - 1];
 					}
 					routingTable[j].path[0] = myID;
-					routingTable[j].path_len = RecvdUpdatePacket->route[i].path_len;
-					out_flag = 1;
+					routingTable[j].path_len = RecvdUpdatePacket->route[i].path_len + 1;
+					// printf("After hop: %d, cost: %d\n", routingTable[j].next_hop, routingTable[j].cost);
+					
+					if (temp_cost != routingTable[j].cost || temp_next_hop != routingTable[j].next_hop) {
+						out_flag = 1;
+					}
+					// out_flag = 1;
 				}
 				break;
 			}
