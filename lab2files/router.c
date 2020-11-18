@@ -8,6 +8,7 @@
 
 struct update_tracker {
 	unsigned int sender_id;
+	// is cost really needed?
 	unsigned int cost;
 	unsigned int last_update;
 	int if_dead;
@@ -143,6 +144,7 @@ int main (int argc, char *argv[]) {
 	for (i = 0; i < num_neighbors; i++) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
+		printf("sender_id: %d\n", update_list[i].sender_id);
 		update_list[i].if_dead = 0;
 		update_list[i].last_update = time(NULL);
 	}
@@ -150,8 +152,6 @@ int main (int argc, char *argv[]) {
 	pthread_mutex_init(&lock, NULL);
 	pthread_create(&udp_thread_id, NULL, udp_thread, NULL);
 	pthread_create(&timer_thread_id, NULL, timer_thread, NULL);
-
-	// fclose(fp);
 
 	pthread_join(udp_thread_id, NULL);
 	pthread_join(timer_thread_id, NULL);
@@ -168,11 +168,6 @@ void *udp_thread(void * arg) {
 	unsigned int cost = 0;
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
-	// printf("IN UDP_THREAD\n");
-
-	// char filename[20];
-	// FILE * fp = NULL;
-	// sprintf(filename, "router%d.log", router_id);
 
 	while(1) {
 		
@@ -186,7 +181,7 @@ void *udp_thread(void * arg) {
 
 		pthread_mutex_lock(&lock);
 
-		// Get cost
+		// Update time
 		for (i = 0; i < num_neighbors; i++) {
 			if (update_response.sender_id == update_list[i].sender_id) {
 				update_list[i].last_update = time(NULL);
@@ -196,11 +191,9 @@ void *udp_thread(void * arg) {
 		}
 
 		flag = UpdateRoutes(&update_response, cost, router_id);
-		// printf("flag: %d\n", flag);
 		if (flag) {
 			fp = fopen(filename, "a");
 			PrintRoutes(fp, router_id);
-			// PrintRoutes(fp, update_response.dest_id);
 			fclose(fp);
 			last_converge = time(NULL);
 			converge_flag = 1;
@@ -215,10 +208,6 @@ void *timer_thread(void * args) {
 	struct pkt_RT_UPDATE rt_update;
 	int i, send;
 
-	// char filename[20];
-	// FILE * fp = NULL;
-	// sprintf(filename, "router%d.log", router_id);
-
 	while (1) {
 		//Check if last update expired. If so, send update packet to all neighbors
 		pthread_mutex_lock(&lock);
@@ -231,15 +220,19 @@ void *timer_thread(void * args) {
 				bzero(&rt_update, sizeof(rt_update));
 				ConvertTabletoPkt(&rt_update, router_id);
 				rt_update.dest_id = update_list[i].sender_id;
+				// printf("routeNum: %d\n", rt_update.no_routes);
 				hton_pkt_RT_UPDATE(&rt_update);
 				int pkt_size = sizeof(rt_update);
 				int send_size = sizeof(server_addr);
-				send = sendto(ne_listenfd, &rt_update, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
-				if (send < 0) {
-					printf("Failed to send\n");
+				if (rt_update.dest_id != router_id) {
+					send = sendto(ne_listenfd, &rt_update, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
+					last_update_time = time(NULL);
+					// printf("pkt sent at %d\n", (int) time(NULL) - start_time);
+					if (send < 0) {
+						printf("Failed to send to: %d\n", rt_update.dest_id);
+					}
 				}
-				// printf("pkt sent\n");
-				last_update_time = time(NULL);
+				
 				i++;
 			}
 		}
