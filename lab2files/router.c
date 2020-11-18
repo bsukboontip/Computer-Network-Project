@@ -213,8 +213,12 @@ void *timer_thread(void * args) {
 		// printf("Curr_time: %d, last_update_time %d\n", current_time, last_update_time);
 		if ((current_time - last_update_time) >= UPDATE_INTERVAL) {
 			// printf("Update time: %d\n", (int) current_time - last_update_time);
+			i = 0;
 			while (i < num_neighbors) {
+				// This i breaks
+				// printf("sender_id: %d, num_neighbors: %d, i: %d\n", update_list[i].sender_id, num_neighbors, i);
 				bzero(&rt_update, sizeof(rt_update));
+				// printf("i: %d\n", i);
 				ConvertTabletoPkt(&rt_update, router_id);
 				rt_update.dest_id = update_list[i].sender_id;
 				// printf("routeNum: %d\n", rt_update.no_routes);
@@ -222,6 +226,7 @@ void *timer_thread(void * args) {
 				int pkt_size = sizeof(rt_update);
 				int send_size = sizeof(server_addr);
 				if (rt_update.dest_id != router_id) {
+					// printf("sending update pkt to %d\n", update_list[i].sender_id);
 					send = sendto(ne_listenfd, &rt_update, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
 					last_update_time = time(NULL);
 					// printf("pkt sent at %d\n", (int) time(NULL) - start_time);
@@ -229,7 +234,6 @@ void *timer_thread(void * args) {
 						printf("Failed to send to: %d\n", rt_update.dest_id);
 					}
 				}
-				
 				i++;
 			}
 		}
@@ -238,12 +242,13 @@ void *timer_thread(void * args) {
 		pthread_mutex_lock(&lock);
 		i = 0;
 		while(i < num_neighbors) {
-			// printf("IN TIMER_THREAD\n");
+			// This i doesn't break
+			// printf("num_neighbors: %d, i: %d\n", num_neighbors, i);
 			current_time = time(NULL);
 			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
 				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
 				if(update_list[i].if_dead == 0) {
-					printf("Dead time: %d\n", (int) current_time - update_list[i].last_update);
+					printf("Dead time: %d, %d died\n", (int) current_time - update_list[i].last_update, update_list[i].sender_id);
 					fp = fopen(filename, "a");
 					PrintRoutes(fp, router_id);
 					fclose(fp);

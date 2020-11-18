@@ -130,7 +130,7 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 			routingTable[NumRoutes].path[0] = myID;
 			routingTable[NumRoutes].path_len = RecvdUpdatePacket->route[i].path_len + 1;
 			NumRoutes++;
-			printf("NumRoutes: %d, p_len: %d, dest_id: %d, next_hop: %d, cost: %d, i: %d\n", NumRoutes, p_len, routingTable[NumRoutes - 1].dest_id, routingTable[NumRoutes - 1].next_hop, routingTable[NumRoutes - 1].cost, i);
+			// printf("NumRoutes: %d, p_len: %d, dest_id: %d, next_hop: %d, cost: %d, i: %d\n", NumRoutes, p_len, routingTable[NumRoutes - 1].dest_id, routingTable[NumRoutes - 1].next_hop, routingTable[NumRoutes - 1].cost, i);
 			out_flag = 1;
 		}
 	}
@@ -144,7 +144,7 @@ void ConvertTabletoPkt(struct pkt_RT_UPDATE *UpdatePacketToSend, int myID){
 	/* ----- YOUR CODE HERE ----- */
 
 	int i = 0;
-	for (i = 0; i <= NumRoutes; i++) {
+	for (i = 0; i < NumRoutes; i++) {
 		UpdatePacketToSend->route[i] = routingTable[i];
 	}
 	UpdatePacketToSend->sender_id = myID;
