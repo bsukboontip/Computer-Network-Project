@@ -54,14 +54,10 @@ int udp_open_listenfd(int port)
   if(bind(listenfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
     return -1;
 
-  //udp doesnt need to listen and accept
-
   return listenfd;
 }
 
 void logRoutes(int r_ID) {
-	// char filename[20];
-	// FILE * fp = NULL;
 	sprintf(filename, "router%d.log", r_ID);
 	fp = fopen(filename, "w");
 	PrintRoutes(fp, r_ID);
@@ -216,6 +212,7 @@ void *timer_thread(void * args) {
 		current_time = time(NULL);
 		// printf("Curr_time: %d, last_update_time %d\n", current_time, last_update_time);
 		if ((current_time - last_update_time) >= UPDATE_INTERVAL) {
+			// printf("Update time: %d\n", (int) current_time - last_update_time);
 			while (i < num_neighbors) {
 				bzero(&rt_update, sizeof(rt_update));
 				ConvertTabletoPkt(&rt_update, router_id);
@@ -246,6 +243,7 @@ void *timer_thread(void * args) {
 			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
 				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
 				if(update_list[i].if_dead == 0) {
+					printf("Dead time: %d\n", (int) current_time - update_list[i].last_update);
 					fp = fopen(filename, "a");
 					PrintRoutes(fp, router_id);
 					fclose(fp);

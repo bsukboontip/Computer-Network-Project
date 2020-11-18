@@ -110,7 +110,7 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 					
 					if (temp_cost != routingTable[j].cost || temp_next_hop != routingTable[j].next_hop) {
 						out_flag = 1;
-						// printf("For %d: Updated from cost %d to %d and hop %d to %d\n", routingTable[j].dest_id, temp_cost, routingTable[j].cost, temp_next_hop, routingTable[j].next_hop);
+						printf("For %d: Updated from cost %d to %d and hop %d to %d. Info from %d\n", routingTable[j].dest_id, temp_cost, routingTable[j].cost, temp_next_hop, routingTable[j].next_hop, RecvdUpdatePacket->sender_id);
 					}
 					// out_flag = 1;
 				}
@@ -181,6 +181,7 @@ void UninstallRoutesOnNbrDeath(int DeadNbr){
 	for (i = 0; i < NumRoutes; i++) {
 		if(routingTable[i].next_hop == DeadNbr) {
 			routingTable[i].cost = INFINITY;
+			// printf("DEAD\n");
 		}
 	}
 	return;
