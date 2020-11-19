@@ -98,7 +98,7 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 				// 		forced_update_path_flag = 1;
 				// 	}
 				// }
-				
+
 				forced_update_path_flag = 0;
 				for (k = 0; k < RecvdUpdatePacket->route[i].path_len; k++) {
 					if (routingTable[j].path[k] == RecvdUpdatePacket->sender_id && new_cost == INFINITY) {
@@ -144,11 +144,11 @@ int UpdateRoutes(struct pkt_RT_UPDATE *RecvdUpdatePacket, int costToNbr, int myI
 					if (temp_cost != routingTable[j].cost) {
 						out_flag = 1;
 						// printf("routingTable[j].dest_id: %d, RecvdUpdatePacket->route[i].dest_id: %d\n", routingTable[j].dest_id, RecvdUpdatePacket->route[i].dest_id);
-						printf("For %d: Updated from cost %d to %d, path_len: %d. Info from %d\n", routingTable[j].dest_id, temp_cost, routingTable[j].cost, routingTable[j].path_len, RecvdUpdatePacket->sender_id);
+						// printf("For %d: Updated from cost %d to %d, path_len: %d. Info from %d\n", routingTable[j].dest_id, temp_cost, routingTable[j].cost, routingTable[j].path_len, RecvdUpdatePacket->sender_id);
 						for (k = 0; k < routingTable[j].path_len; k++) {
-							printf("%d->", routingTable[j].path[k]);
+							// printf("%d->", routingTable[j].path[k]);
 						}
-						printf("\n");
+						// printf("\n");
 					
 					}
 					// out_flag = 1;
