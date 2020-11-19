@@ -33,28 +33,28 @@ void *timer_thread(void * arg);
 
 
 //open_listenfd from lab 1
-int udp_open_listenfd(int port)
+int udp_open_listenfd(int port) 
 {
-	int listenfd, optval = 1;
-	struct sockaddr_in serveraddr;
+  int listenfd, optval = 1;
+  struct sockaddr_in serveraddr;
 
-	//Create a socket descriptor
-	if ((listenfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
-		return -1;
+  //Create a socket descriptor
+  if((listenfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    return -1;
 
-	//Eliminates "Address already in use" error from bind 
-	if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, sizeof(int)) < 0)
-		return -1;
+  //Eliminates "Address already in use" error from bind 
+  if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void*)&optval, sizeof(int)) < 0)
+    return -1;
 
-	//Listenfd will be an endpoint for all requests to port on any IP address for this host
-	bzero((char *)&serveraddr, sizeof(serveraddr));
-	serveraddr.sin_family = AF_INET;
-	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serveraddr.sin_port = htons((unsigned short)port);
-	if (bind(listenfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
-		return -1;
+  //Listenfd will be an endpoint for all requests to port on any IP address for this host
+  bzero((char *) &serveraddr, sizeof(serveraddr));
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serveraddr.sin_port = htons((unsigned short)port);
+  if(bind(listenfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
+    return -1;
 
-	return listenfd;
+  return listenfd;
 }
 
 void logRoutes(int r_ID) {
@@ -65,14 +65,14 @@ void logRoutes(int r_ID) {
 	fclose(fp);
 }
 
-int main(int argc, char *argv[]) {
+int main (int argc, char *argv[]) {
 	if (argc != 5) {
 		printf("Incorrect number of arguments\n");
 		return EXIT_FAILURE;
 	}
 
 	//VARIABLE DECLARATIONS
-	int ne_port, router_port, i;
+	int ne_port, router_port, i; 
 	char *hostname;
 	struct hostent *hp;
 	struct sockaddr_in recv_addr;
@@ -90,14 +90,14 @@ int main(int argc, char *argv[]) {
 
 	//Create UDP socket
 	ne_listenfd = udp_open_listenfd(router_port);
-	if (ne_listenfd < 0) {
+	if(ne_listenfd < 0) {
 		printf("Failed to open listenfd\n");
 		return EXIT_FAILURE;
 	}
 
 	//Get hostname
 	hp = gethostbyname(hostname);
-	if (hp == NULL) {
+	if(hp == NULL) {
 		printf("Error getting hostname\n");
 		return EXIT_FAILURE;
 	}
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 	bzero(&server_addr, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(ne_port);
-	memcpy((void *)&server_addr.sin_addr, hp->h_addr_list[0], hp->h_length);
+	memcpy((void *) &server_addr.sin_addr, hp->h_addr_list[0], hp->h_length);
 
 	//Initial request
 	bzero(&init_request, sizeof(init_request));
@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
 	}
 	// printf("begin init\n");
 	ntoh_pkt_INIT_RESPONSE(&init_response);
-
+	
 	InitRoutingTbl(&init_response, router_id);
 	logRoutes(router_id);
 	num_neighbors = init_response.no_nbr;
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
 	converge_flag = 0;
 
 	i = 0;
-	while (i < num_neighbors) {
+	while(i < num_neighbors) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
 		// printf("sender_id: %d\n", update_list[i].sender_id);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 
 	pthread_join(udp_thread_id, NULL);
 	pthread_join(timer_thread_id, NULL);
-
+	
 	return EXIT_SUCCESS;
 }
 
@@ -164,8 +164,8 @@ void *udp_thread(void * arg) {
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
 
-	while (1) {
-
+	while(1) {
+		
 		int pkt_size = sizeof(update_response);
 		int recv = recvfrom(ne_listenfd, &update_response, pkt_size, 0, (struct sockaddr *) &recv_addr, &len);
 		if (recv < 0) {
@@ -179,7 +179,7 @@ void *udp_thread(void * arg) {
 
 		// Update time
 		i = 0;
-		while (i < num_neighbors) {
+		while(i < num_neighbors) {
 			if (update_response.sender_id == update_list[i].sender_id) {
 				update_list[i].last_update = time(NULL);
 				cost = update_list[i].cost;
@@ -199,7 +199,7 @@ void *udp_thread(void * arg) {
 		}
 		pthread_mutex_unlock(&lock);
 	}
-
+	
 	return NULL;
 }
 
@@ -208,17 +208,17 @@ void *timer_thread(void * args) {
 	int i, send;
 
 	while (1) {
-
+		
 		//Check for dead neighbors
 		pthread_mutex_lock(&lock);
 		i = 0;
-		while (i < num_neighbors) {
+		while(i < num_neighbors) {
 			// This i doesn't break
 			// printf("num_neighbors: %d, i: %d\n", num_neighbors, i);
 			current_time = time(NULL);
-			if ((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
+			if((current_time - update_list[i].last_update) > FAILURE_DETECTION) {
 				UninstallRoutesOnNbrDeath(update_list[i].sender_id);
-				if (update_list[i].if_dead == 0) {
+				if(update_list[i].if_dead == 0) {
 					// printf("Dead time: %d, %d died\n", (int) current_time - update_list[i].last_update, update_list[i].sender_id);
 					fp = fopen(filename, "a");
 					PrintRoutes(fp, router_id);
@@ -273,13 +273,13 @@ void *timer_thread(void * args) {
 		pthread_mutex_lock(&lock);
 		current_time = time(NULL);
 		// printf("%d:Check Converged, current_time: %d, last_converge: %d\n", current_time - last_converge, current_time, last_converge);
-		if (((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
+		if(((current_time - last_converge) > CONVERGE_TIMEOUT) && (converge_flag)) {
 			// PrintRoutes(fp, router_id);
 			fp = fopen(filename, "a");
-			fprintf(fp, "%d:Converged\n", (int)current_time - start_time);
+			fprintf(fp, "%d:Converged\n", (int) current_time - start_time);
 			fflush(fp);
 			fclose(fp);
-			printf("%d:Converged\n", (int)current_time - start_time);
+			printf("%d:Converged\n", (int) current_time - start_time);
 			converge_flag = 0;
 		}
 		pthread_mutex_unlock(&lock);
