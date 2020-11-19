@@ -110,9 +110,7 @@ int main (int argc, char *argv[]) {
 	//Initial request
 	bzero(&init_request, sizeof(init_request));
 	init_request.router_id = htonl(router_id);
-	int send_size = sizeof(server_addr);
-	int pkt_size = sizeof(init_request);
-	int send = sendto(ne_listenfd, &init_request, pkt_size, 0, (struct sockaddr *) &server_addr, send_size);
+	int send = sendto(ne_listenfd, &init_request, sizeof(init_request), 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
 	if (send < 0) {
 		printf("Failed to send\n");
 	}
@@ -120,8 +118,7 @@ int main (int argc, char *argv[]) {
 	//Receive response
 	bzero(&recv_addr, sizeof(recv_addr));
 	len = sizeof(recv_addr);
-	pkt_size = sizeof(init_response);
-	int recv = recvfrom(ne_listenfd, &init_response, pkt_size, 0, (struct sockaddr *) &recv_addr, &len);
+	int recv = recvfrom(ne_listenfd, &init_response, sizeof(init_response), 0, (struct sockaddr *) &recv_addr, &len);
 	if (recv < 0) {
 		printf("Failed to receive\n");
 	}
@@ -137,12 +134,14 @@ int main (int argc, char *argv[]) {
 	start_time = time(NULL);
 	converge_flag = 0;
 
-	for (i = 0; i < num_neighbors; i++) {
+	i = 0;
+	while(i < num_neighbors) {
 		update_list[i].cost = init_response.nbrcost[i].cost;
 		update_list[i].sender_id = init_response.nbrcost[i].nbr;
 		// printf("sender_id: %d\n", update_list[i].sender_id);
 		update_list[i].if_dead = 0;
 		update_list[i].last_update = time(NULL);
+		i++;
 	}
 
 	pthread_mutex_init(&lock, NULL);
@@ -179,12 +178,14 @@ void *udp_thread(void * arg) {
 		pthread_mutex_lock(&lock);
 
 		// Update time
-		for (i = 0; i < num_neighbors; i++) {
+		i = 0;
+		while(i < num_neighbors) {
 			if (update_response.sender_id == update_list[i].sender_id) {
 				update_list[i].last_update = time(NULL);
 				cost = update_list[i].cost;
 				break;
 			}
+			i++;
 		}
 
 		flag = UpdateRoutes(&update_response, cost, router_id);
